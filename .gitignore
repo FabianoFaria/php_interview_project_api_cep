@@ -1,0 +1,27 @@
+# Env files
+.env
+backend/.env
+frontend/.env
+
+# Backend (Laravel)
+backend/vendor/
+backend/node_modules/
+backend/storage/*.key
+backend/bootstrap/cache/*.php
+backend/.phpunit.result.cache
+
+# Frontend (Vite/React)
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+
+# Claude Code
+.claude/
+

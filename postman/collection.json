@@ -1,0 +1,94 @@
+{
+  "info": {
+    "name": "Cadastro de Clientes API",
+    "description": "Endpoints da API de cadastro de clientes com preenchimento automatico de endereco via CEP.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000/api"
+    },
+    {
+      "key": "cliente_id",
+      "value": "1"
+    }
+  ],
+  "item": [
+    {
+      "name": "Buscar endereco por CEP",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/json" }],
+        "url": {
+          "raw": "{{base_url}}/cep/01310100",
+          "host": ["{{base_url}}"],
+          "path": ["cep", "01310100"]
+        }
+      }
+    },
+    {
+      "name": "Listar clientes (paginado)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/json" }],
+        "url": {
+          "raw": "{{base_url}}/clientes?page=1",
+          "host": ["{{base_url}}"],
+          "path": ["clientes"],
+          "query": [{ "key": "page", "value": "1" }]
+        }
+      }
+    },
+    {
+      "name": "Criar cliente",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nome\": \"Joao Silva\",\n  \"email\": \"joao@example.com\",\n  \"cep\": \"01310-100\",\n  \"logradouro\": \"Avenida Paulista\",\n  \"numero\": \"1000\",\n  \"complemento\": \"Ap 12\",\n  \"bairro\": \"Bela Vista\",\n  \"cidade\": \"Sao Paulo\",\n  \"uf\": \"SP\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/clientes",
+          "host": ["{{base_url}}"],
+          "path": ["clientes"]
+        }
+      }
+    },
+    {
+      "name": "Atualizar cliente",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nome\": \"Joao Silva Junior\",\n  \"email\": \"joao@example.com\",\n  \"cep\": \"01310-100\",\n  \"logradouro\": \"Avenida Paulista\",\n  \"numero\": \"1001\",\n  \"complemento\": \"Ap 12\",\n  \"bairro\": \"Bela Vista\",\n  \"cidade\": \"Sao Paulo\",\n  \"uf\": \"SP\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/clientes/{{cliente_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["clientes", "{{cliente_id}}"]
+        }
+      }
+    },
+    {
+      "name": "Remover cliente",
+      "request": {
+        "method": "DELETE",
+        "header": [{ "key": "Accept", "value": "application/json" }],
+        "url": {
+          "raw": "{{base_url}}/clientes/{{cliente_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["clientes", "{{cliente_id}}"]
+        }
+      }
+    }
+  ]
+}
