@@ -19,8 +19,20 @@ until docker compose exec -T mysql mysqladmin ping -h 127.0.0.1 --silent >/dev/n
 done
 echo ""
 
-echo "==> Instalando dependencias PHP (se necessario) e gerando APP_KEY..."
-docker compose exec -T backend composer install --no-interaction
+echo "==> Aguardando o backend instalar as dependencias PHP..."
+# O proprio entrypoint.sh do backend ja roda "composer install" sozinho no
+# boot do container (com retry automatico em caso de falha de rede). Rodar
+# de novo aqui geraria dois processos do composer escrevendo na mesma pasta
+# vendor/ ao mesmo tempo - foi exatamente isso que causava downloads
+# corrompidos de forma intermitente. Em vez disso, so esperamos o backend
+# ficar pronto (artisan funcional = vendor/autoload.php ja existe).
+until docker compose exec -T backend php artisan --version >/dev/null 2>&1; do
+    printf '.'
+    sleep 2
+done
+echo ""
+
+echo "==> Gerando APP_KEY..."
 docker compose exec -T backend php artisan key:generate --ansi
 
 echo "==> Rodando migrations..."
