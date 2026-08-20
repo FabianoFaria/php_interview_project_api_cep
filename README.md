@@ -63,21 +63,61 @@ correto para cada tipo de erro.
 Componentizacao simples (formulario, lista, item de lista, campo de
 formulario reutilizavel), com uma camada de servicos isolada (`services/`)
 para toda chamada HTTP - nenhum componente chama `axios` diretamente. Estado
-gerenciado com `useState`/hooks locais e um `Context` leve apenas para o
-sistema de notificacoes (toast), evitando bibliotecas de estado global
-desnecessarias para o escopo do projeto (Redux seria over-engineering aqui).
-A busca de CEP e feita por um hook dedicado (`useCepLookup`) com debounce,
-que os campos preenchidos automaticamente permanecem editaveis manualmente.
+gerenciado com `useState`/hooks locais e Contexts leves (toast, autenticacao)
+em vez de uma biblioteca de estado global (Redux seria over-engineering para
+o escopo deste projeto). A busca de CEP e feita por um hook dedicado
+(`useCepLookup`) com debounce, e os campos preenchidos automaticamente
+permanecem editaveis manualmente.
+
+### Autenticacao: Sanctum com Bearer token, nao SPA/cookie
+
+A API usa [Laravel Sanctum](https://laravel.com/docs/sanctum) no modo de
+**tokens de API** (Bearer token no header `Authorization`), e nao no modo
+SPA/cookie que o pacote tambem oferece. Essa escolha evita a complexidade de
+CORS com `credentials: include` entre origens diferentes
+(`localhost:5173` para o frontend, `localhost:8000` para a API) - nao ha
+cookies de sessao envolvidos, nao ha CSRF token para gerenciar, e
+`config/cors.php` fica com `supports_credentials => false`.
+
+O token e devolvido pelo backend em `POST /api/register` e `POST /api/login`
+e o frontend o guarda em `localStorage` (ver decisao de seguranca na secao
+[Frontend](#autenticacao-no-frontend) abaixo). Todas as rotas de `clientes`
+exigem o middleware `auth:sanctum`. A rota `GET /api/cep/{cep}` continua
+**publica** de proposito: e apenas uma consulta de CEP, nao expoe dado
+sensivel nem esta vinculada a um usuario, entao exigir login ali so
+adicionaria atrito sem ganho de seguranca real.
+
+Como a aplicacao e uma API pura (sem tela de login web), foi preciso
+desabilitar explicitamente o redirecionamento padrao do Laravel para uma
+rota `login` inexistente quando um convidado nao autenticado acessa uma rota
+protegida sem enviar `Accept: application/json` (`bootstrap/app.php`,
+`redirectGuestsTo`) - sem isso, esse cenario especifico resultava em erro
+500 em vez de 401.
+
+#### Autenticacao no frontend
+
+O token fica em `localStorage` (`useAuth`/`AuthContext`,
+`services/tokenStorage.ts`) e e anexado a toda requisicao por um interceptor
+do Axios (`services/api.ts`). **Troca de seguranca consciente:**
+`localStorage` e vulneravel a XSS (qualquer script injetado na pagina
+consegue ler o token), mas e uma escolha aceitavel para o escopo deste
+teste tecnico. Em uma aplicacao real, a alternativa mais segura seria um
+cookie `httpOnly` emitido pelo backend (o que, por sua vez, exigiria voltar
+ao modo SPA/cookie do Sanctum e lidar com CORS+credentials). Uma resposta
+`401` de qualquer requisicao limpa o token automaticamente e redireciona
+para `/login` (tratamento global no interceptor).
 
 ## Diferenciais implementados
 
 - Cache de consultas de CEP (Laravel Cache, TTL configuravel).
 - Fallback automatico entre dois provedores de CEP (Strategy pattern).
 - Paginacao na listagem de clientes (backend e frontend).
-- Testes automatizados: 5 testes de feature para os 5 endpoints + 6 testes
-  unitarios do `CepService` mockando as chamadas HTTP com `Http::fake()`.
+- Testes automatizados: 27 testes (feature de CEP, clientes e autenticacao +
+  unitarios do `CepService` mockando as chamadas HTTP com `Http::fake()`).
 - Exception handler customizado com respostas JSON padronizadas.
 - Mensagens de validacao traduzidas para portugues (`lang/pt_BR`).
+- Autenticacao via Laravel Sanctum (Bearer token) protegendo as rotas de
+  clientes, com registro, login, logout e sessao persistida no frontend.
 - Coleção Postman pronta para uso (`postman/collection.json`).
 - Script `setup.sh` para subir o ambiente completo com um unico comando.
 - Pipeline de CI (GitHub Actions) rodando testes de backend e lint/typecheck/build
@@ -162,14 +202,80 @@ curl http://localhost:8000/api/cep/80010000
 ```
 
 Erros: `400` (formato invalido), `404` (CEP nao encontrado), `502` (todos os
-provedores indisponiveis).
+provedores indisponiveis). Rota publica - nao exige autenticacao (ver
+decisao acima).
 
-### `GET /api/clientes`
+### Autenticacao
+
+Todos os endpoints de `/api/clientes` abaixo exigem um Bearer token valido
+no header `Authorization: Bearer {token}`, obtido em `/api/register` ou
+`/api/login`.
+
+#### `POST /api/register`
+
+```bash
+curl -X POST http://localhost:8000/api/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Joao Silva",
+    "email": "joao@example.com",
+    "password": "senha123",
+    "password_confirmation": "senha123"
+  }'
+```
+
+Retorna `201`:
+
+```json
+{
+  "user": { "id": 1, "name": "Joao Silva", "email": "joao@example.com" },
+  "token": "1|abcdef123456..."
+}
+```
+
+`422` em caso de validacao (nome obrigatorio, e-mail unico e valido, senha
+com no minimo 8 caracteres e confirmada em `password_confirmation`).
+
+#### `POST /api/login`
+
+```bash
+curl -X POST http://localhost:8000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{ "email": "joao@example.com", "password": "senha123" }'
+```
+
+Retorna `200` com o mesmo formato de `/register` (`{"user": {...}, "token": "..."}`).
+Credenciais invalidas retornam `422` com uma mensagem generica
+("As credenciais informadas nao conferem.") - a mesma mensagem tanto para
+e-mail inexistente quanto para senha errada, para nao revelar se um e-mail
+esta cadastrado. Limitado a 6 tentativas por minuto por IP (`throttle:6,1`);
+excedendo isso, retorna `429`.
+
+#### `POST /api/logout` (protegida)
+
+```bash
+curl -X POST http://localhost:8000/api/logout \
+  -H "Authorization: Bearer {token}"
+```
+
+Revoga o token usado na propria requisicao. Retorna `204`.
+
+#### `GET /api/me` (protegida)
+
+```bash
+curl http://localhost:8000/api/me -H "Authorization: Bearer {token}"
+```
+
+Retorna `200` com `{"user": {...}}` do usuario autenticado, ou `401` se o
+token for invalido, ausente ou ja revogado.
+
+### `GET /api/clientes` (protegida)
 
 Lista paginada (15 por pagina). Aceita `?page=N`.
 
 ```bash
-curl http://localhost:8000/api/clientes?page=1
+curl "http://localhost:8000/api/clientes?page=1" \
+  -H "Authorization: Bearer {token}"
 ```
 
 ```json
@@ -182,11 +288,12 @@ curl http://localhost:8000/api/clientes?page=1
 }
 ```
 
-### `POST /api/clientes`
+### `POST /api/clientes` (protegida)
 
 ```bash
 curl -X POST http://localhost:8000/api/clientes \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {token}" \
   -d '{
     "nome": "Joao Silva",
     "email": "joao@example.com",
@@ -204,16 +311,19 @@ Retorna `201` com `{"data": {...}}`. Retorna `422` em caso de validacao
 (campos obrigatorios: `nome`, `email`, `cep`, `logradouro`, `numero`,
 `bairro`, `cidade`, `uf`; `complemento` e opcional; `email` deve ser unico).
 
-### `PUT /api/clientes/{id}`
+### `PUT /api/clientes/{id}` (protegida)
 
 Mesmo payload do `POST`. Retorna `200` com `{"data": {...}}`, `404` se o
 cliente nao existir, `422` em caso de validacao.
 
-### `DELETE /api/clientes/{id}`
+### `DELETE /api/clientes/{id}` (protegida)
 
 Retorna `204` sem corpo, ou `404` se o cliente nao existir.
 
-Uma coleção pronta com os 5 endpoints esta disponivel em
+Qualquer um dos 4 endpoints acima retorna `401` sem o header `Authorization`
+ou com um token invalido/revogado.
+
+Uma coleção pronta com todos os endpoints esta disponivel em
 [`postman/collection.json`](postman/collection.json).
 
 ## Variaveis de ambiente
@@ -239,6 +349,7 @@ Alem das variaveis padrao do Laravel (`DB_*`, `APP_*`), destacam-se:
 | `CEP_CACHE_TTL_HOURS`           | TTL do cache de consultas de CEP, em horas (padrao `24`)     |
 | `CORREIOS_API_USUARIO`          | Usuario da API dos Correios (opcional, ver decisao acima)    |
 | `CORREIOS_API_CARTAO_POSTAGEM`  | Cartao de postagem da API dos Correios (opcional)            |
+| `CORS_ALLOWED_ORIGINS`          | Origens autorizadas a consumir a API, separadas por virgula (padrao `http://localhost:5173`) |
 
 ### Frontend (`frontend/.env`)
 
@@ -257,7 +368,13 @@ Cobertura:
 - `tests/Feature/CepControllerTest.php` - formato invalido, sucesso, CEP com
   hifen, nao encontrado, provedores indisponiveis.
 - `tests/Feature/ClienteControllerTest.php` - listagem paginada, criacao,
-  validacao, email duplicado, atualizacao, remocao, casos de 404.
+  validacao, email duplicado, atualizacao, remocao, casos de 404. Autentica
+  um usuario de teste (`Sanctum::actingAs`) antes de cada chamada, ja que as
+  rotas exigem login.
+- `tests/Feature/AuthControllerTest.php` - registro (sucesso, email
+  duplicado, senha fraca/confirmacao incorreta), login (sucesso, credenciais
+  invalidas sem revelar se o e-mail existe), logout revoga o token, rota
+  protegida com/sem token.
 - `tests/Unit/CepServiceTest.php` - validacao de formato, sucesso via
   ViaCEP, cache (nao repete chamada HTTP), fallback entre provedores, CEP
   nao encontrado, indisponibilidade de todos os provedores. Todas as
@@ -312,22 +429,23 @@ ainda faltam:
 │   └── nginx/                # Configuracao do Nginx
 ├── backend/                  # API Laravel
 │   ├── app/
-│   │   ├── Http/Controllers/Api/   # Controllers finos (CepController, ClienteController)
-│   │   ├── Http/Requests/          # Form Requests (validacao)
+│   │   ├── Http/Controllers/Api/   # Controllers finos (Auth, Cep, Cliente)
+│   │   ├── Http/Requests/          # Form Requests (validacao, incl. Register/Login)
 │   │   ├── Http/Resources/         # API Resources (formatacao de resposta)
 │   │   ├── Services/                # CepService + providers (Strategy pattern)
-│   │   ├── Models/                  # Eloquent models
+│   │   ├── Models/                  # Eloquent models (Cliente, User)
 │   │   └── Exceptions/              # Excecoes de dominio (CEP invalido/nao encontrado/indisponivel)
 │   ├── database/migrations/
 │   ├── lang/pt_BR/                  # Mensagens de validacao em portugues
 │   └── tests/                       # Feature + Unit
 ├── frontend/                 # React + Vite + TypeScript
 │   └── src/
-│       ├── components/        # ClienteForm, ClienteList, FormField, Toast
-│       ├── pages/              # CadastroPage, ListagemPage, EditarClientePage
-│       ├── services/           # api.ts, cepService.ts, clienteService.ts
+│       ├── components/        # ClienteForm, ClienteList, FormField, Toast, ProtectedRoute
+│       ├── contexts/           # AuthContext (usuario, token, login/logout)
+│       ├── pages/              # CadastroPage, ListagemPage, EditarClientePage, Login, Register
+│       ├── services/           # api.ts (interceptor Bearer), cepService.ts, clienteService.ts, authService.ts
 │       ├── hooks/               # useCepLookup (busca com debounce)
-│       └── types/                # Cliente, EnderecoCep, Pagination
-├── postman/collection.json   # Colecao com os 5 endpoints
+│       └── types/                # Cliente, EnderecoCep, Pagination, Auth
+├── postman/collection.json   # Colecao com os endpoints da API
 └── setup.sh                  # Script de setup automatizado
 ```

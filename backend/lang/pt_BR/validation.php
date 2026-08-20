@@ -76,6 +76,9 @@ return [
         'bairro' => 'bairro',
         'cidade' => 'cidade',
         'uf' => 'UF',
+        'name' => 'nome',
+        'password' => 'senha',
+        'password_confirmation' => 'confirmacao de senha',
     ],
 
 ];
