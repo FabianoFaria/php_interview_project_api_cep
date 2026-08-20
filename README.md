@@ -80,6 +80,8 @@ que os campos preenchidos automaticamente permanecem editaveis manualmente.
 - Mensagens de validacao traduzidas para portugues (`lang/pt_BR`).
 - Coleção Postman pronta para uso (`postman/collection.json`).
 - Script `setup.sh` para subir o ambiente completo com um unico comando.
+- Pipeline de CI (GitHub Actions) rodando testes de backend e lint/typecheck/build
+  do frontend a cada push/PR (ver secao [CI/CD](#cicd)).
 
 ## Pre-requisitos
 
@@ -261,9 +263,49 @@ Cobertura:
   nao encontrado, indisponibilidade de todos os provedores. Todas as
   chamadas HTTP externas sao mockadas com `Http::fake()`.
 
+## CI/CD
+
+### CI (implementado)
+
+Workflow em [`.github/workflows/ci.yml`](.github/workflows/ci.yml), disparado em
+todo push e pull request para `main`, com dois jobs independentes:
+
+- **`backend`** - PHP 8.3, `composer install`, `php artisan test`. Nao depende de
+  um servico MySQL no CI: os testes usam SQLite em memoria (configurado em
+  `phpunit.xml`), entao rodam isolados e rapidos.
+- **`frontend`** - Node 20, `npm ci`, lint (`oxlint`), type-check
+  (`tsc -b --noEmit`) e build de producao (`vite build`), garantindo que o
+  frontend compila sem erros antes de qualquer merge.
+
+Nenhum desses arquivos entra em build de imagem Docker nem afeta o fluxo local
+descrito em [Como rodar](#como-rodar) - o CI roda isolado nos runners do GitHub.
+
+### CD (planejado, ainda nao implementado)
+
+O plano e portar a aplicacao para uma VPS propria apos a entrega. Para isso,
+ainda faltam:
+
+1. Imagem de producao do backend com o codigo copiado e `composer install
+   --no-dev` executado no build (hoje o Dockerfile depende de bind mount +
+   `entrypoint.sh` para instalar dependencias no boot - correto para dev,
+   errado para producao).
+2. Build do frontend (`npm run build`, ja validado no CI) servido como
+   estatico via Nginx, em vez do dev server do Vite usado hoje.
+3. Uma variante de producao do `docker-compose.yml` (sem bind mounts,
+   `APP_ENV=production`, `APP_DEBUG=false`, MySQL sem porta exposta
+   publicamente).
+4. Gestao de segredos (credenciais da VPS, `APP_KEY`, senhas de banco) como
+   *secrets* do GitHub Actions, nunca em arquivo versionado.
+5. HTTPS (Nginx + Let's Encrypt/Certbot, ou um proxy como Traefik/Caddy).
+6. Um job `deploy` no workflow, condicionado aos jobs `backend`/`frontend`
+   passarem, conectando via SSH e atualizando os containers na VPS.
+7. Decisao sobre como rodar `php artisan migrate --force` em producao
+   (automatico no deploy vs. passo manual).
+
 ## Estrutura de pastas
 
 ```
+├── .github/workflows/ci.yml # Pipeline de CI (testes backend + build frontend)
 ├── docker-compose.yml       # Orquestra backend, nginx, frontend e mysql
 ├── docker/
 │   ├── php/                 # Dockerfile do PHP-FPM + entrypoint
