@@ -192,17 +192,41 @@ body {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  overflow-x: auto;
 }
 
 .cliente-list__vazio {
   color: var(--color-text-muted);
 }
 
+/* Tabela: visivel em telas >= 641px. overflow-x continua como rede de
+   seguranca (ex.: zoom do navegador), mas na faixa suportada nao deveria
+   disparar. */
+.cliente-list__table-wrap {
+  overflow-x: auto;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 640px;
+  table-layout: fixed;
+  min-width: 560px;
+}
+
+th:nth-child(1), td:nth-child(1) { width: 12%; } /* Nome */
+th:nth-child(2), td:nth-child(2) { width: 13%; } /* E-mail */
+th:nth-child(3), td:nth-child(3) { width: 17%; } /* CEP - formato fixo, nunca quebra nem trunca */
+th:nth-child(4), td:nth-child(4) { width: 15%; } /* Endereco */
+th:nth-child(5), td:nth-child(5) { width: 8%; }  /* Bairro */
+th:nth-child(6), td:nth-child(6) { width: 8%; }  /* Cidade/UF */
+th:nth-child(7), td:nth-child(7) { width: 27%; } /* Acoes - 2 botoes lado a lado, nunca empilha */
+
+td:nth-child(7) {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+td:nth-child(3) {
+  white-space: nowrap;
 }
 
 th,
@@ -211,22 +235,111 @@ td {
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--color-border);
   font-size: 0.9rem;
+  vertical-align: middle;
 }
 
 th {
   color: var(--color-text-muted);
   font-weight: 600;
   background: var(--color-bg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 tr:last-child td {
   border-bottom: none;
 }
 
+/* Trunca em uma linha só, com "..." no fim - evita que texto longo (nome,
+   e-mail, endereco, bairro, cidade/UF) quebre em varias linhas e estique a
+   altura da linha de forma desigual entre celulas. O valor completo fica
+   disponivel via atributo title (tooltip nativo). */
+.cliente-list td.truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .cliente-list__actions {
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 0.5rem;
+}
+
+.cliente-list__actions .btn {
+  padding: 0.4rem 0.6rem;
+  font-size: 0.78rem;
   white-space: nowrap;
+}
+
+/* Cards: alternativa a tabela em telas <= 640px (ver breakpoint abaixo) */
+.cliente-list__cards {
+  display: none;
+  list-style: none;
+  margin: 0;
+  padding: 0.75rem;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.cliente-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+
+.cliente-card__header {
+  margin-bottom: 0.85rem;
+}
+
+.cliente-card__nome {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.cliente-card__email {
+  margin: 0.2rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  word-break: break-word;
+}
+
+.cliente-card__detalhes {
+  margin: 0 0 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.cliente-card__campo dt {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  margin-bottom: 0.15rem;
+}
+
+.cliente-card__campo dd {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.cliente-card__actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.cliente-card__actions .btn {
+  flex: 1;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .pagination {
@@ -270,5 +383,43 @@ tr:last-child td {
 @media (max-width: 640px) {
   .cliente-form__grid {
     grid-template-columns: 1fr;
+  }
+
+  .cliente-list__table-wrap {
+    display: none;
+  }
+
+  .cliente-list__cards {
+    display: flex;
+  }
+}
+
+/* Desktop (>= 1024px): ha espaco de sobra, entao mostramos e-mail, endereco,
+   bairro e cidade/UF por extenso em vez de truncar. CEP e Acoes nao
+   precisam de mais espaco que o minimo (tamanho de conteudo fixo), entao a
+   folga vai toda para as colunas de texto livre. Linhas podem ficar com
+   altura variavel quando o conteudo for longo - isso e seguro agora que
+   vertical-align: middle e o layout em linha dos botoes de Acoes garantem
+   o alinhamento entre celulas. */
+@media (min-width: 1024px) {
+  th:nth-child(1), td:nth-child(1) { width: 12%; } /* Nome */
+  th:nth-child(2), td:nth-child(2) { width: 18%; } /* E-mail */
+  th:nth-child(3), td:nth-child(3) { width: 11%; } /* CEP */
+  th:nth-child(4), td:nth-child(4) { width: 20%; } /* Endereco */
+  th:nth-child(5), td:nth-child(5) { width: 9%; }  /* Bairro */
+  th:nth-child(6), td:nth-child(6) { width: 10%; } /* Cidade/UF */
+  th:nth-child(7), td:nth-child(7) { width: 20%; } /* Acoes */
+
+  .cliente-list td.truncate {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: break-word;
+  }
+
+  .cliente-list th {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
   }
 }
