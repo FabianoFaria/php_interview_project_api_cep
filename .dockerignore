@@ -1,0 +1,31 @@
+# Dependencias instaladas localmente - cada Dockerfile de producao instala
+# as suas dentro do build, nao devem vir do host.
+backend/vendor/
+backend/node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Cache/artefatos gerados do Laravel localmente. Sem isso, um
+# bootstrap/cache/packages.php gerado num "composer install" completo (com
+# pacotes de dev) vaza pra dentro da imagem de producao e quebra o
+# "package:discover" (tenta carregar provider de um pacote --no-dev nunca
+# instalado, ex: laravel/pail).
+backend/bootstrap/cache/*.php
+backend/storage/framework/cache/data/*
+backend/storage/framework/sessions/*
+backend/storage/framework/testing/*
+backend/storage/framework/views/*
+backend/storage/logs/*
+backend/.phpunit.result.cache
+
+# Segredos - nunca devem entrar numa imagem versionada num registry
+.env
+backend/.env
+frontend/.env
+
+# Irrelevante pro build de qualquer imagem
+.git/
+.github/
+node_modules/
+*.md
+docker-compose*.yml

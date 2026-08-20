@@ -1,0 +1,50 @@
+# Imagem de producao do backend: ao contrario de docker/php/Dockerfile (dev,
+# depende de bind mount + entrypoint.sh instalando dependencias em runtime),
+# esta copia o codigo e resolve o composer install no build, gerando uma
+# imagem autocontida pronta pra rodar (sem volume do codigo-fonte).
+FROM composer:2 AS vendor
+
+WORKDIR /app
+
+COPY backend/composer.json backend/composer.lock ./
+RUN composer install \
+        --no-dev \
+        --no-interaction \
+        --no-scripts \
+        --no-autoloader \
+        --prefer-dist
+
+COPY backend/ .
+RUN composer dump-autoload --no-dev --optimize
+
+FROM php:8.3-fpm-alpine
+
+RUN apk add --no-cache \
+        libzip-dev \
+        libpng-dev \
+        libjpeg-turbo-dev \
+        freetype-dev \
+        oniguruma-dev \
+        icu-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j"$(nproc)" \
+        pdo_mysql \
+        mbstring \
+        exif \
+        pcntl \
+        bcmath \
+        gd \
+        zip \
+        intl \
+        opcache
+
+WORKDIR /var/www/html
+
+COPY --from=vendor /app .
+
+RUN chown -R www-data:www-data storage bootstrap/cache \
+    && chmod -R ugo+rwX storage bootstrap/cache
+
+EXPOSE 9000
+
+CMD ["php-fpm"]
