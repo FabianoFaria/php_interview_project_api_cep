@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Cadastro de Clientes API",
-    "description": "Endpoints da API de cadastro de clientes com preenchimento automatico de endereco via CEP.",
+    "description": "Endpoints da API de cadastro de clientes com preenchimento automatico de endereco via CEP, protegida por autenticacao via Laravel Sanctum (Bearer token).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -12,9 +12,124 @@
     {
       "key": "cliente_id",
       "value": "1"
+    },
+    {
+      "key": "token",
+      "value": ""
     }
   ],
   "item": [
+    {
+      "name": "Autenticacao",
+      "item": [
+        {
+          "name": "Registrar",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('token', pm.response.json().token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Joao Silva\",\n  \"email\": \"joao@example.com\",\n  \"password\": \"senha123\",\n  \"password_confirmation\": \"senha123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/register",
+              "host": ["{{base_url}}"],
+              "path": ["register"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    pm.collectionVariables.set('token', pm.response.json().token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"joao@example.com\",\n  \"password\": \"senha123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/login",
+              "host": ["{{base_url}}"],
+              "path": ["login"]
+            }
+          }
+        },
+        {
+          "name": "Ver usuario autenticado (me)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/me",
+              "host": ["{{base_url}}"],
+              "path": ["me"]
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 204) {",
+                  "    pm.collectionVariables.set('token', '');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/logout",
+              "host": ["{{base_url}}"],
+              "path": ["logout"]
+            }
+          }
+        }
+      ]
+    },
     {
       "name": "Buscar endereco por CEP",
       "request": {
@@ -32,6 +147,10 @@
       "request": {
         "method": "GET",
         "header": [{ "key": "Accept", "value": "application/json" }],
+        "auth": {
+          "type": "bearer",
+          "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+        },
         "url": {
           "raw": "{{base_url}}/clientes?page=1",
           "host": ["{{base_url}}"],
@@ -48,6 +167,10 @@
           { "key": "Accept", "value": "application/json" },
           { "key": "Content-Type", "value": "application/json" }
         ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+        },
         "body": {
           "mode": "raw",
           "raw": "{\n  \"nome\": \"Joao Silva\",\n  \"email\": \"joao@example.com\",\n  \"cep\": \"01310-100\",\n  \"logradouro\": \"Avenida Paulista\",\n  \"numero\": \"1000\",\n  \"complemento\": \"Ap 12\",\n  \"bairro\": \"Bela Vista\",\n  \"cidade\": \"Sao Paulo\",\n  \"uf\": \"SP\"\n}"
@@ -67,6 +190,10 @@
           { "key": "Accept", "value": "application/json" },
           { "key": "Content-Type", "value": "application/json" }
         ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+        },
         "body": {
           "mode": "raw",
           "raw": "{\n  \"nome\": \"Joao Silva Junior\",\n  \"email\": \"joao@example.com\",\n  \"cep\": \"01310-100\",\n  \"logradouro\": \"Avenida Paulista\",\n  \"numero\": \"1001\",\n  \"complemento\": \"Ap 12\",\n  \"bairro\": \"Bela Vista\",\n  \"cidade\": \"Sao Paulo\",\n  \"uf\": \"SP\"\n}"
@@ -83,6 +210,10 @@
       "request": {
         "method": "DELETE",
         "header": [{ "key": "Accept", "value": "application/json" }],
+        "auth": {
+          "type": "bearer",
+          "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+        },
         "url": {
           "raw": "{{base_url}}/clientes/{{cliente_id}}",
           "host": ["{{base_url}}"],

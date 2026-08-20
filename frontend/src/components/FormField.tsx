@@ -9,6 +9,7 @@ interface FormFieldProps {
   placeholder?: string;
   maxLength?: number;
   autoComplete?: string;
+  type?: string;
 }
 
 export function FormField({
@@ -22,6 +23,7 @@ export function FormField({
   placeholder,
   maxLength,
   autoComplete,
+  type = 'text',
 }: FormFieldProps) {
   return (
     <div className="form-field">
@@ -32,6 +34,7 @@ export function FormField({
       <input
         id={name}
         name={name}
+        type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
