@@ -1,0 +1,6 @@
+# Scripts executados dentro de containers Linux (via shebang, ex: #!/bin/sh)
+# precisam de quebra de linha LF, independente do core.autocrlf de quem
+# clona o repositorio. Sem isso, um clone no Windows com autocrlf=true
+# converte para CRLF e quebra o shebang, causando o erro
+# "exec .../entrypoint.sh: no such file or directory" dentro do container.
+*.sh text eol=lf
