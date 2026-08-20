@@ -120,6 +120,10 @@ para `/login` (tratamento global no interceptor).
   clientes, com registro, login, logout e sessao persistida no frontend.
 - Coleção Postman pronta para uso (`postman/collection.json`).
 - Script `setup.sh` para subir o ambiente completo com um unico comando.
+- Instalacao do backend resiliente: `vendor/` isolado em volume Docker
+  nomeado (fora do bind mount) e retry automatico do `composer install` no
+  `entrypoint.sh`, evitando que uma falha de rede transiente deixe o
+  container preso num loop de reinicio (ver [Problemas comuns](#problemas-comuns)).
 - Pipeline de CI (GitHub Actions) rodando testes de backend e lint/typecheck/build
   do frontend a cada push/PR (ver secao [CI/CD](#cicd)).
 
@@ -151,11 +155,16 @@ cp .env.example .env
 cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env
 
-# 2. Subir os containers
+# 2. Subir os containers. O backend instala as dependencias PHP sozinho no
+#    boot (composer install roda dentro do entrypoint.sh, com retry
+#    automatico). Nao rode "composer install" manualmente depois deste
+#    comando - dois processos do composer escrevendo em vendor/ ao mesmo
+#    tempo pode corromper a instalacao.
 docker compose up -d --build
 
-# 3. Instalar dependencias PHP e gerar a chave da aplicacao
-docker compose exec backend composer install
+# 3. Gerar a chave da aplicacao (espere o backend acabar de instalar as
+#    dependencias; acompanhe com "docker compose logs -f backend" ate ver
+#    "ready to handle connections" se o comando abaixo falhar de primeira)
 docker compose exec backend php artisan key:generate
 
 # 4. Rodar as migrations
@@ -172,6 +181,24 @@ docker compose exec backend php artisan migrate
 
 As portas podem ser alteradas no `.env` da raiz (`NGINX_PORT`,
 `FRONTEND_PORT`, `MYSQL_PORT`).
+
+### Problemas comuns
+
+- **Bad Gateway (502) logo apos subir os containers pela primeira vez**: o
+  backend instala as dependencias PHP automaticamente no boot, o que leva
+  alguns segundos. Espere e tente de novo, ou acompanhe com
+  `docker compose logs -f backend` ate ver "ready to handle connections".
+- **Erro do Composer durante a instalacao** (ex: `corrupted zip archive`,
+  comum sob rede instavel): o `entrypoint.sh` tenta a instalacao novamente
+  de forma automatica (ate 3 vezes) sem precisar de nenhuma acao manual. Se
+  mesmo assim o container continuar reiniciando, force uma reinstalacao
+  limpa removendo o volume de dependencias do backend:
+  ```bash
+  docker compose down
+  docker volume ls | grep backend_vendor   # confirme o nome exato do volume
+  docker volume rm <nome_do_volume_backend_vendor>
+  docker compose up -d --build
+  ```
 
 ## Endpoints da API
 
